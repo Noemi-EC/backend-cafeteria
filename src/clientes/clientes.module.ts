@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from '../auth/auth.module';
 import { UsuariosModule } from '../usuarios/usuarios.module';
 import { ClientesController } from './clientes.controller';
+import { Visita } from '../visitas/entities/visita.entity';
 import { ClientesService } from './clientes.service';
 
 /**
@@ -13,7 +15,9 @@ import { ClientesService } from './clientes.service';
 @Module({
   // UsuariosModule reexporta TypeOrmModule con Usuario y PerfilCliente.
   // AuthModule exporta JwtModule, que necesita el JwtAuthGuard.
-  imports: [UsuariosModule, AuthModule],
+  // forFeature([Visita]) aquí también: el repositorio se puede registrar
+  // en varios módulos, y así este no depende de VisitasModule.
+  imports: [TypeOrmModule.forFeature([Visita]), UsuariosModule, AuthModule],
   controllers: [ClientesController],
   providers: [ClientesService],
 })

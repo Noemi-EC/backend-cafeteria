@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { Visita } from '../visitas/entities/visita.entity';
 import { calcularNivel } from '../perfil/niveles';
 import { PerfilCliente } from '../usuarios/entities/perfil-cliente.entity';
 import { Rol, Usuario } from '../usuarios/entities/usuario.entity';
@@ -24,10 +25,13 @@ export class ClientesService {
     private readonly perfiles: Repository<PerfilCliente>,
     @InjectRepository(Usuario)
     private readonly usuarios: Repository<Usuario>,
+    @InjectRepository(Visita)
+    private readonly visitas: Repository<Visita>,
   ) {}
 
-  private presentar(perfil: PerfilCliente) {
+  private presentar(perfil: PerfilCliente, ultimaVisitaEn: Date | null = null) {
     return {
+      ultimaVisitaEn,
       usuarioId: perfil.usuarioId,
       nombre: perfil.nombre,
       contacto: perfil.usuario?.contacto ?? null,
@@ -39,15 +43,44 @@ export class ClientesService {
     };
   }
 
-  /** Lista los clientes del local, activos e inactivos. */
+  /**
+   * Lista los clientes del local, activos e inactivos.
+   *
+   * Van ordenados por última visita, del más reciente al más antiguo, y al
+   * final los que nunca vinieron. Un barista atiende a quien está delante:
+   * el orden alfabético no le sirve de nada.
+   */
   async listar(localId: string) {
     const perfiles = await this.perfiles.find({
       where: { usuario: { localId, rol: Rol.CLIENTE } },
       relations: { usuario: true },
-      order: { nombre: 'ASC' },
     });
 
-    return perfiles.map((p) => this.presentar(p));
+    // Una sola consulta agrupada en vez de una por cliente.
+    const filas = await this.visitas
+      .createQueryBuilder('v')
+      .select('v.cliente_id', 'clienteId')
+      .addSelect('MAX(v.registrada_en)', 'ultima')
+      .where('v.local_id = :localId', { localId })
+      .andWhere('v.anulada = false')
+      .groupBy('v.cliente_id')
+      .getRawMany<{ clienteId: string; ultima: Date }>();
+
+    const ultimas = new Map(filas.map((f) => [f.clienteId, f.ultima]));
+
+    return perfiles
+      .map((p) => this.presentar(p, ultimas.get(p.id) ?? null))
+      .sort((a, b) => {
+        if (!a.ultimaVisitaEn && !b.ultimaVisitaEn) {
+          return a.nombre.localeCompare(b.nombre);
+        }
+        if (!a.ultimaVisitaEn) return 1;
+        if (!b.ultimaVisitaEn) return -1;
+        return (
+          new Date(b.ultimaVisitaEn).getTime() -
+          new Date(a.ultimaVisitaEn).getTime()
+        );
+      });
   }
 
   /** Eliminar (lógico): desactiva la cuenta del cliente. */
@@ -61,7 +94,7 @@ export class ClientesService {
     usuario.activo = false;
     await this.usuarios.save(usuario);
 
-    return this.presentar(await this.buscarPerfil(usuarioId));
+    return this.presentar(await this.buscarPerfil(usuarioId), await this.ultimaVisita(usuarioId));
   }
 
   /** Restauración de usuarios: vuelve a activar la cuenta. */
@@ -75,7 +108,7 @@ export class ClientesService {
     usuario.activo = true;
     await this.usuarios.save(usuario);
 
-    return this.presentar(await this.buscarPerfil(usuarioId));
+    return this.presentar(await this.buscarPerfil(usuarioId), await this.ultimaVisita(usuarioId));
   }
 
   /**
@@ -95,6 +128,18 @@ export class ClientesService {
     }
 
     return usuario;
+  }
+
+  private async ultimaVisita(usuarioId: string): Promise<Date | null> {
+    const perfil = await this.perfiles.findOne({ where: { usuarioId } });
+    if (!perfil) return null;
+
+    const visita = await this.visitas.findOne({
+      where: { clienteId: perfil.id, anulada: false },
+      order: { registradaEn: 'DESC' },
+    });
+
+    return visita?.registradaEn ?? null;
   }
 
   private async buscarPerfil(usuarioId: string): Promise<PerfilCliente> {
