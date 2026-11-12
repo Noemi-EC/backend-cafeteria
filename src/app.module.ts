@@ -4,6 +4,11 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsuariosModule } from './usuarios/usuarios.module';
 import { LocalesModule } from './locales/locales.module';
 import { AuthModule } from './auth/auth.module';
+import { PerfilModule } from './perfil/perfil.module';
+import { VisitasModule } from './visitas/visitas.module';
+import { ClientesModule } from './clientes/clientes.module';
+import { IaModule } from './ia/ia.module';
+import { BeneficiosModule } from './beneficios/beneficios.module';
 import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { RespuestaInterceptor } from './common/interceptors/respuesta.interceptor';
 import { RespuestaExceptionFilter } from './common/filters/respuesta-exception.filter';
@@ -27,6 +32,11 @@ import { RespuestaExceptionFilter } from './common/filters/respuesta-exception.f
     UsuariosModule,
     LocalesModule,
     AuthModule,
+    PerfilModule,
+    VisitasModule,
+    ClientesModule,
+    IaModule,
+    BeneficiosModule,
   ],
   providers: [
     { provide: APP_INTERCEPTOR, useClass: RespuestaInterceptor },
