@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from '../auth/auth.module';
+import { EventosModule } from '../eventos/eventos.module';
 import { UsuariosModule } from '../usuarios/usuarios.module';
 import { Visita } from './entities/visita.entity';
 import { VisitasController } from './visitas.controller';
@@ -16,6 +17,8 @@ import { VisitasService } from './visitas.service';
     UsuariosModule,
     // AuthModule exporta JwtModule, que necesita el JwtAuthGuard.
     AuthModule,
+    // Para avisar por WebSocket cuando se registra o anula una visita.
+    EventosModule,
   ],
   controllers: [VisitasController],
   providers: [VisitasService],

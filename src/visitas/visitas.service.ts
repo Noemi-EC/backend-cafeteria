@@ -4,10 +4,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, MoreThan, Repository } from 'typeorm';
 import { calcularNivel } from '../perfil/niveles';
 import { PerfilCliente } from '../usuarios/entities/perfil-cliente.entity';
+import { EventosGateway } from '../eventos/eventos.gateway';
 import { ActualizarVisitaDto } from './dto/actualizar-visita.dto';
 import { RegistrarVisitaDto } from './dto/registrar-visita.dto';
 import { Visita } from './entities/visita.entity';
@@ -32,7 +34,14 @@ export class VisitasService {
     @InjectRepository(PerfilCliente)
     private readonly perfiles: Repository<PerfilCliente>,
     private readonly dataSource: DataSource,
+    private readonly eventos: EventosGateway,
+    private readonly config: ConfigService,
   ) {}
+
+  /** Minutos que deben pasar entre dos visitas del mismo cliente. 0 = sin límite. */
+  private get minutosEspera(): number {
+    return Number(this.config.get<string>('VISITA_MINUTOS_ESPERA') ?? 30);
+  }
 
   private presentar(visita: Visita, nombreCliente?: string | null) {
     return {
@@ -48,7 +57,7 @@ export class VisitasService {
   async registrar(dto: RegistrarVisitaDto, localId: string, baristaId: string) {
     // Transacción: o se guardan la visita y el nuevo total, o no se guarda
     // ninguno de los dos. Nunca una visita sin contar.
-    return this.dataSource.transaction(async (manager) => {
+    const resultado = await this.dataSource.transaction(async (manager) => {
       const perfil = await manager.findOne(PerfilCliente, {
         where: { codigoQr: dto.codigoQr.trim() },
         relations: { usuario: true },
@@ -62,6 +71,31 @@ export class VisitasService {
       }
       if (!perfil.usuario.activo) {
         throw new ConflictException('La cuenta de ese cliente está desactivada');
+      }
+
+      // Una visita es una ida a la cafetería, no un escaneo. Sin esta regla
+      // el mismo código leído tres veces seguidas suma tres visitas, y el
+      // nivel de fidelización deja de significar nada.
+      if (this.minutosEspera > 0) {
+        const desde = new Date(Date.now() - this.minutosEspera * 60_000);
+        const reciente = await manager.findOne(Visita, {
+          where: {
+            clienteId: perfil.id,
+            anulada: false,
+            registradaEn: MoreThan(desde),
+          },
+          order: { registradaEn: 'DESC' },
+        });
+
+        if (reciente) {
+          const hace = Math.max(
+            1,
+            Math.round((Date.now() - reciente.registradaEn.getTime()) / 60000),
+          );
+          throw new ConflictException(
+            `${perfil.nombre} ya registró una visita hace ${hace} min. Debe pasar ${this.minutosEspera} min entre visitas.`,
+          );
+        }
       }
 
       const nivelAnterior = calcularNivel(perfil.totalVisitas).nivel;
@@ -88,8 +122,17 @@ export class VisitasService {
           ...estado,
         },
         subioDeNivel: estado.nivel !== nivelAnterior,
+        usuarioId: perfil.usuarioId,
       };
     });
+
+    // El aviso sale DESPUÉS de que la transacción confirmó. Si se emitiera
+    // adentro y luego fallara el commit, los clientes verían una visita
+    // que en la base de datos nunca existió.
+    const { usuarioId, ...publico } = resultado;
+    this.eventos.emitirVisitaRegistrada(localId, usuarioId, publico);
+
+    return publico;
   }
 
   /** Consultar información: el historial del cliente que pregunta. */
@@ -139,7 +182,7 @@ export class VisitasService {
    * que la visita existió y de que alguien la anuló.
    */
   async anular(id: string, localId: string) {
-    return this.dataSource.transaction(async (manager) => {
+    const resultado = await this.dataSource.transaction(async (manager) => {
       const visita = await manager.findOne(Visita, {
         where: { id, localId },
         relations: { cliente: true },
@@ -168,8 +211,14 @@ export class VisitasService {
           totalVisitas: perfil.totalVisitas,
           ...calcularNivel(perfil.totalVisitas),
         },
+        usuarioId: perfil.usuarioId,
       };
     });
+
+    const { usuarioId, ...publico } = resultado;
+    this.eventos.emitirVisitaAnulada(localId, usuarioId, publico);
+
+    return publico;
   }
 
   private async buscarDelLocal(id: string, localId: string): Promise<Visita> {
