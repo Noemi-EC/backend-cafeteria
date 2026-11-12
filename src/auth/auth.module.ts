@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
-import { UsuariosModule } from 'src/usuarios/usuarios.module';
+import { UsuariosModule } from '../usuarios/usuarios.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 
@@ -21,5 +21,7 @@ import { AuthService } from './auth.service';
   ],
   controllers: [AuthController],
   providers: [AuthService],
+  // Se exporta JwtModule para que otros módulos puedan usar el JwtAuthGuard.
+  exports: [JwtModule],
 })
 export class AuthModule {}

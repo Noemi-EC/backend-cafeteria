@@ -23,4 +23,12 @@ export class UsuariosService {
   buscarPorContacto(contacto: string): Promise<Usuario | null> {
     return this.usuarios.findOne({ where: { contacto } });
   }
+
+  /** Trae al usuario con su local, para la pantalla de cuenta. */
+  buscarPorId(id: string): Promise<Usuario | null> {
+    return this.usuarios.findOne({
+      where: { id },
+      relations: { local: true },
+    });
+  }
 }
