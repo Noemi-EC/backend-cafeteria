@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { CodigoRecuperacion } from './entities/codigo-recuperacion.entity';
 import { UsuariosModule } from '../usuarios/usuarios.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
@@ -8,6 +10,7 @@ import { AuthService } from './auth.service';
 @Module({
   imports: [
     UsuariosModule,
+    TypeOrmModule.forFeature([CodigoRecuperacion]),
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({

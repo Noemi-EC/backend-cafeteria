@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
+import { CorreoService } from '../correo/correo.service';
 import { PerfilCliente } from '../usuarios/entities/perfil-cliente.entity';
 import { Usuario } from '../usuarios/entities/usuario.entity';
 import { ActualizarPerfilDto } from './dto/actualizar-perfil.dto';
@@ -20,6 +21,7 @@ export class PerfilService {
     private readonly perfiles: Repository<PerfilCliente>,
     @InjectRepository(Usuario)
     private readonly usuarios: Repository<Usuario>,
+    private readonly correo: CorreoService,
   ) {}
 
   private async buscar(usuarioId: string): Promise<PerfilCliente> {
@@ -99,6 +101,10 @@ export class PerfilService {
     // Se guarda el hash, nunca la contraseña: bcrypt no tiene vuelta atrás.
     usuario.passwordHash = await bcrypt.hash(dto.passwordNueva, 10);
     await this.usuarios.save(usuario);
+
+    // Aviso al contacto registrado. Si el cambio no lo hizo el dueño de la
+    // cuenta, es la forma de que se entere.
+    await this.correo.enviarAvisoCambioPassword(usuario.contacto);
 
     return { actualizada: true };
   }

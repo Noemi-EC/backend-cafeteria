@@ -12,6 +12,8 @@ import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { Mensaje } from '../common/decorators/mensaje.decorator';
 import { RegistroDto } from './dto/registro.dto';
+import { RecuperarDto } from './dto/recuperar.dto';
+import { RestablecerDto } from './dto/restablecer.dto';
 import { UsuarioActual } from '../common/decorators/usuario-actual.decorator';
 import { UsuariosService } from '../usuarios/usuarios.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -35,6 +37,20 @@ export class AuthController {
   @Mensaje('Cuenta creada correctamente')
   registro(@Body() dto: RegistroDto) {
     return this.authService.registro(dto);
+  }
+
+  @Post('recuperar')
+  @HttpCode(HttpStatus.OK)
+  @Mensaje('Solicitud recibida')
+  recuperar(@Body() dto: RecuperarDto) {
+    return this.authService.recuperar(dto);
+  }
+
+  @Post('restablecer')
+  @HttpCode(HttpStatus.OK)
+  @Mensaje('Contraseña restablecida')
+  restablecer(@Body() dto: RestablecerDto) {
+    return this.authService.restablecer(dto);
   }
 
   /**
