@@ -9,6 +9,9 @@ import { VisitasModule } from './visitas/visitas.module';
 import { ClientesModule } from './clientes/clientes.module';
 import { IaModule } from './ia/ia.module';
 import { BeneficiosModule } from './beneficios/beneficios.module';
+import { ReportesModule } from './reportes/reportes.module';
+import { CorreoModule } from './correo/correo.module';
+import { ConfiguracionModule } from './configuracion/configuracion.module';
 import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { RespuestaInterceptor } from './common/interceptors/respuesta.interceptor';
 import { RespuestaExceptionFilter } from './common/filters/respuesta-exception.filter';
@@ -37,6 +40,9 @@ import { RespuestaExceptionFilter } from './common/filters/respuesta-exception.f
     ClientesModule,
     IaModule,
     BeneficiosModule,
+    ReportesModule,
+    CorreoModule,
+    ConfiguracionModule,
   ],
   providers: [
     { provide: APP_INTERCEPTOR, useClass: RespuestaInterceptor },
