@@ -53,7 +53,8 @@ export class BeneficiosService {
       },
       mensaje: redactado.mensaje,
       generadoPor: redactado.origen,
-      modelo: redactado.origen === 'ia' ? this.openRouter.modelo : null,
+      modelo:
+        redactado.origen === 'ia' ? await this.openRouter.modelo() : null,
     };
   }
 

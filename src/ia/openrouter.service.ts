@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { ConfiguracionService } from '../configuracion/configuracion.service';
 
 interface RespuestaOpenRouter {
   choices?: { message?: { content?: string } }[];
@@ -26,21 +26,29 @@ export class OpenRouterService {
   private static readonly URL =
     'https://openrouter.ai/api/v1/chat/completions';
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(private readonly configuracion: ConfiguracionService) {}
 
-  get configurado(): boolean {
-    return Boolean(this.config.get<string>('OPENROUTER_API_KEY'));
-  }
-
-  get modelo(): string {
+  /**
+   * La clave ya no se lee del .env directamente: la resuelve el servicio
+   * de configuración, que busca primero en la base de datos. Por eso estos
+   * métodos son asíncronos.
+   */
+  async modelo(): Promise<string> {
     return (
-      this.config.get<string>('OPENROUTER_MODEL') ??
+      (await this.configuracion.obtener('OPENROUTER_MODEL')) ??
       'cohere/north-mini-code:free'
     );
   }
 
-  get habilitado(): boolean {
-    return this.configurado && this.config.get('IA_ACTIVA') !== 'false';
+  async estado() {
+    const clave = await this.configuracion.obtener('OPENROUTER_API_KEY');
+    const activa = await this.configuracion.obtener('IA_ACTIVA');
+
+    return {
+      claveConfigurada: Boolean(clave),
+      habilitada: Boolean(clave) && activa !== 'false',
+      modelo: await this.modelo(),
+    };
   }
 
   /**
@@ -49,7 +57,10 @@ export class OpenRouterService {
    * porque un modelo puede devolver JSON válido con contenido inventado.
    */
   async completarJson<T>(sistema: string, usuario: string): Promise<T | null> {
-    if (!this.habilitado) return null;
+    const { habilitada, modelo } = await this.estado();
+    if (!habilitada) return null;
+
+    const clave = await this.configuracion.obtener('OPENROUTER_API_KEY');
 
     // Si el proveedor tarda demasiado, se corta: el usuario no puede
     // quedarse mirando un spinner por culpa de un modelo lento.
@@ -61,12 +72,12 @@ export class OpenRouterService {
         method: 'POST',
         signal: controlador.signal,
         headers: {
-          Authorization: `Bearer ${this.config.get<string>('OPENROUTER_API_KEY')}`,
+          Authorization: `Bearer ${clave}`,
           'Content-Type': 'application/json',
           'X-Title': 'Raiz Contigo',
         },
         body: JSON.stringify({
-          model: this.modelo,
+          model: modelo,
           messages: [
             { role: 'system', content: sistema },
             { role: 'user', content: usuario },

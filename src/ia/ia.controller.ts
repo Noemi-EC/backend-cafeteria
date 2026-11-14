@@ -20,12 +20,10 @@ export class IaController {
 
   @Get('estado')
   @Mensaje('Estado de la integración de IA')
-  estado() {
+  async estado() {
     return {
       proveedor: 'OpenRouter',
-      claveConfigurada: this.openRouter.configurado,
-      habilitada: this.openRouter.habilitado,
-      modelo: this.openRouter.modelo,
+      ...(await this.openRouter.estado()),
       productosEnCatalogo: CATALOGO.length,
     };
   }

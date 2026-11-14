@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { ConfiguracionService } from '../configuracion/configuracion.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, MoreThan, Repository } from 'typeorm';
 import { calcularNivel } from '../perfil/niveles';
@@ -35,12 +35,13 @@ export class VisitasService {
     private readonly perfiles: Repository<PerfilCliente>,
     private readonly dataSource: DataSource,
     private readonly eventos: EventosGateway,
-    private readonly config: ConfigService,
+    private readonly configuracion: ConfiguracionService,
   ) {}
 
   /** Minutos que deben pasar entre dos visitas del mismo cliente. 0 = sin límite. */
-  private get minutosEspera(): number {
-    return Number(this.config.get<string>('VISITA_MINUTOS_ESPERA') ?? 30);
+  private async minutosEspera(): Promise<number> {
+    const valor = await this.configuracion.obtener('VISITA_MINUTOS_ESPERA');
+    return Number(valor ?? 30);
   }
 
   private presentar(visita: Visita, nombreCliente?: string | null) {
@@ -76,8 +77,10 @@ export class VisitasService {
       // Una visita es una ida a la cafetería, no un escaneo. Sin esta regla
       // el mismo código leído tres veces seguidas suma tres visitas, y el
       // nivel de fidelización deja de significar nada.
-      if (this.minutosEspera > 0) {
-        const desde = new Date(Date.now() - this.minutosEspera * 60_000);
+      const espera = await this.minutosEspera();
+
+      if (espera > 0) {
+        const desde = new Date(Date.now() - espera * 60_000);
         const reciente = await manager.findOne(Visita, {
           where: {
             clienteId: perfil.id,
@@ -93,7 +96,7 @@ export class VisitasService {
             Math.round((Date.now() - reciente.registradaEn.getTime()) / 60000),
           );
           throw new ConflictException(
-            `${perfil.nombre} ya registró una visita hace ${hace} min. Debe pasar ${this.minutosEspera} min entre visitas.`,
+            `${perfil.nombre} ya registró una visita hace ${hace} min. Debe pasar ${espera} min entre visitas.`,
           );
         }
       }
